@@ -1,33 +1,33 @@
 
-WINDOW = 10
+from operator import attrgetter
+
+WINDOW = 300
+MIN = 5
 MARGIN = 0.02
-FEE = 0.0065
 
 class HrBot:
     def __init__(self):
         self.trades = []
-        self.btc = False
-        self.balance = 1.0
-        self.numt = 0
 
     def update(self, trades):
         self.trades += trades
-        if len(self.trades) > WINDOW:
-            self.trades = self.trades[-WINDOW:]
+        offset = time.time() - WINDOW
+        self.trades = filter(lambda x: x['date'] > offset, self.trades)
 
-    def action(self, buy, sell):
-        if len(self.trades) < WINDOW:
+    def action(self, balance, prices):
+        if len(self.trades) < MIN:
             return None
-        movavg = sum(self.trades)/WINDOW
-        if not self.btc and buy < movavg * (1 - MARGIN):
-            print "buy", buy
-            self.btc = True
-            self.balance /= buy
-            # self.balance *= 1 - FEE
-        elif self.btc and sell > movavg * (1 + MARGIN):
-            print "sell", sell
-            self.btc = False
-            self.balance *= sell
-            self.balance *= 1 - FEE
-            self.numt += 1
-            print "balance", self.numt, self.balance
+        # price, amount, tid, date
+        movavg = sum(map(attrgetter('price'), self.trades)) / len(self.trades)
+
+        btcs = balance['btcs']
+        usds = balance['usds']
+
+        buy = prices['buy']
+        sell = prices['sell']
+
+        if btcs == 0 and buy < movavg * (1 - MARGIN):
+            return usds / buy
+        elif btcs > 0 and sell > movavg * (1 + MARGIN):
+            return -btcs
+        return 0
