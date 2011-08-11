@@ -79,6 +79,26 @@ class Broker(Thread):
         data = maybeRetry(self.gox.orders)
         return data['orders']
 
+    def trades(self, since=None):
+        def _getTrades(since):
+            trades = []
+            while True:
+                try:
+                    t = self.gox.trades(since)
+                except Exception,e:
+                    print "!! Request timed out; trying again"
+                    print e
+                    time.sleep(1)
+                    continue
+                print "%s -- %s" % (time.ctime(t[0]['date']), time.ctime(t[-1]['date']))
+                trades = trades + t
+                if len(t) < 100:
+                    break
+                since = t[-1]['tid']
+
+        data = maybeRetry(lambda : _getTrades(since))
+        return data['trades']
+
     def cancel(self, oid):
         maybeRetry(lambda: self.gox.cancel(oid))
         if oid in self.queued:
