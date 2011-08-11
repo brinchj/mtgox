@@ -14,15 +14,18 @@ try:
     broker.start()
 
     # broker.cancelAll()
-    print(broker.balance())
-    penge = broker.offer(intBTC(-0.1))
+    bal = broker.balance()
+    print(bal)
+    penge = broker.offer({'btcs': intBTC(0.1), 'usds': intUSD(2)})
+    print(penge)
+    penge = broker.offer(bal)
     print(penge)
 
-    print(broker.trade(intBTC(-0.1), intUSD(15), 1,
-                       lambda oid: print("Success", oid),
-                       lambda oid: print("Timeout", oid)
-                       )
-          )
+    # print(broker.trade(intBTC(-0.1), intUSD(15), 1,
+    #                    lambda oid: print("Success", oid),
+    #                    lambda oid: print("Timeout", oid)
+    #                    )
+    #       )
     # print(broker.orders())
     # print broker.trade(4 * 10**8, 10.1 * 10**5)
     # print broker.trade(4 * 10**8, 10.2 * 10**5)

@@ -60,20 +60,29 @@ class Broker(Thread):
         data['usds'] = intUSD(data['usds'])
         return data
 
-    def offer(self, amount):
+    def offer(self, balance):
+        btcs = balance['btcs']
+        usds = balance['usds']
         data = maybeRetry(self.gox.depth)
-        if amount < 0:
-            amount = -amount
-            bids = data['bids'][-1::-1]
-        else:
-            bids = data['asks']
+        conv = lambda (usd,btc): (intUSD(usd), intBTC(btc))
+        bids = map(conv, data['bids'][-1::-1])
+        asks = map(conv, data['asks'])
+        print bids[0:2]
+        print asks[0:2]
 
-        bids = map(lambda (usd,btc): (intUSD(usd), intBTC(btc)), bids)
         n = 0
         for (p, a) in bids:
             n += a
-            if n >= amount:
-                return p
+            if n >= btcs:
+                sell = p
+                break
+        n = 0
+        for (p, a) in asks:
+            n += p * (a / BTC_FACTOR)
+            if n >= usds:
+                buy = p
+                break
+        return {'buy': buy, 'sell': sell}
 
     def orders(self):
         data = maybeRetry(self.gox.orders)
