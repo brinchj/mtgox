@@ -3,7 +3,7 @@ from operator import attrgetter
 import time
 
 
-WINDOW = 300
+WINDOW = 600
 MIN = 5
 MARGIN = 0.02
 SCALE = 0.1
@@ -13,11 +13,12 @@ class HrBot:
         self.trades = []
 
     def update(self, trades):
-        self.trades += trades
+        self.trades = trades
         offset = time.time() - WINDOW
         self.trades = filter(lambda x: x['date'] > offset, self.trades)
 
     def action(self, balance, prices):
+        print 'got:', len(self.trades)
         if len(self.trades) < MIN:
             return 0
         # price, amount, tid, date
