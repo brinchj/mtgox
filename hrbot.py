@@ -1,6 +1,6 @@
 
 WINDOW = 10
-MARGIN = 0.01
+MARGIN = 0.02
 FEE = 0.0065
 
 class HrBot:

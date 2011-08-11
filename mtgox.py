@@ -18,14 +18,14 @@ def get_nonce():
 
 def post(url, data='', headers={}):
     req = urllib2.Request(url, data, headers)
-    res = urllib2.urlopen(req, timeout=30)
+    res = urllib2.urlopen(req, timeout=10)
     return res.read()
 
 
 class MtGox:
     URL = 'https://mtgox.com/api/0/%s.php?%s'
 
-    def __init__(self, key, secret):
+    def __init__(self, key = '', secret = ''):
         self.key = key
         self.sec = secret
 
@@ -73,3 +73,6 @@ class MtGox:
 
     def orders(self):
         return self.req(MtGox.URL % ('getOrders', ''))
+
+    def ticker(self):
+        return self.req(MtGox.URL % ('data/ticker', ''))
