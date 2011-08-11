@@ -19,10 +19,10 @@ def intBTC(usd):
 def intUSD(usd):
     return int(Decimal(usd) * USD_FACTOR)
 
-def floatBTC(btc):
+def strBTC(btc):
     return str(Decimal(btc) / BTC_FACTOR)
 
-def floatUSD(usd):
+def strUSD(usd):
     return str(Decimal(usd) / USD_FACTOR)
 
 class Broker(Thread):
@@ -30,12 +30,23 @@ class Broker(Thread):
         Thread.__init__(self)
 
         self.gox = gox
+        self.queued = dict()
         self.running = False
 
     def run(self):
         self.running = True
         while self.running:
-            time.sleep(1)
+            time.sleep(5)
+            data = self.orders()
+            now = time.time()
+            for oid in self.queued.keys():
+                if any(map(lambda x: x['oid'] == oid, data)):
+                    if now > self.queued[oid]['timeout']:
+                        self.queued[oid]['onTimeout'](oid)
+                        self.cancel(oid)
+                else:
+                    self.queued[oid]['onSuccess'](oid)
+                    del self.queued[oid]
 
     def stop(self):
         self.running = False
@@ -60,5 +71,30 @@ class Broker(Thread):
             if n >= amount:
                 return p
 
-    def trade(self, amount, price, ttl, onsuccess, onfailure):
-        pass
+    def orders(self):
+        data = maybeRetry(self.gox.orders)
+        return data['orders']
+
+    def cancel(self, oid):
+        maybeRetry(lambda: self.gox.cancel(oid))
+        if oid in self.queued:
+            del self.queued[oid]
+
+    def cancelAll(self):
+        map(lambda x: self.cancel(x['oid']), self.orders())
+
+    def trade(self, amount, price, ttl = None,
+              onSuccess = None, onTimeout = None):
+        if amount < 0:
+            amount = -amount
+            action = self.gox.sell
+        else:
+            action = self.gox.buy
+
+        data = maybeRetry(lambda:action(strBTC(amount), strUSD(price)))
+        oid = data['oid']
+        self.queued[oid] = {'timeout': time.time() + ttl * 60,
+                            'onSuccess': onSuccess,
+                            'onTimeout': onTimeout}
+
+        return oid
