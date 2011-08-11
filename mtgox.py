@@ -13,7 +13,6 @@ def hmac_digest(data, key):
 
 
 def get_nonce():
-    time.sleep(0.01)
     return str(int(time.time() * 1000))
 
 
@@ -34,17 +33,24 @@ class MtGox:
         self.running = False
 
     def req(self, url, values={'nonce': None}):
-        nonce = get_nonce()
-        values['nonce'] = nonce
-        post_data = urllib.urlencode(values)
+        while True:
+            nonce = get_nonce()
+            values['nonce'] = nonce
+            post_data = urllib.urlencode(values)
 
-        headers = {
-            'Rest-Key': self.key,
-            'Rest-Sign': b64encode(hmac_digest(post_data, b64decode(self.sec)))
-            }
+            headers = {
+                'Rest-Key': self.key,
+                'Rest-Sign': b64encode(hmac_digest(post_data, b64decode(self.sec)))
+                }
 
-        js = post(url, post_data, headers)
-        return json.loads(js)
+            js = post(url, post_data, headers)
+            try:
+                dt = json.loads(js)
+            except:
+                continue
+            if 'error' in dt:
+                continue
+            return dt
 
     def trades(self, since = None):
         if since is not None:
