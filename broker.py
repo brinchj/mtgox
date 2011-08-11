@@ -8,7 +8,7 @@ def maybeRetry(action):
         try:
             return action()
         except (urllib2.URLError, urllib2.HTTPError), e:
-            print e
+            pass
 
 BTC_FACTOR = 10**8
 USD_FACTOR = 10**5
@@ -16,8 +16,8 @@ USD_FACTOR = 10**5
 def to_decimal(flt):
     return Decimal(str(flt))
 
-def intBTC(usd):
-    return int(to_decimal(usd) * BTC_FACTOR)
+def intBTC(btc):
+    return int(to_decimal(btc) * BTC_FACTOR)
 
 def intUSD(usd):
     return int(to_decimal(usd) * USD_FACTOR)
@@ -84,10 +84,14 @@ class Broker(Thread):
 
     def orders(self):
         data = maybeRetry(self.gox.orders)
-        return data['orders']
+        return map(lambda x: {'amount': int(x['amount_int']),
+                              'price': int(x['price_int']),
+                              'status': x['real_status'],
+                              'date': x['date'],
+                              'oid': x['oid']},
+                   data['orders'])
 
     def trades(self, since=None):
-        since = None
         trades = []
         while True:
             t = maybeRetry(lambda: self.gox.trades(since))
