@@ -20,7 +20,7 @@ class HrBot:
         if len(self.trades) < MIN:
             return None
         # price, amount, tid, date
-        movavg = sum(map(attrgetter('price'), self.trades)) / len(self.trades)
+        movavg = sum(map(lambda x: x['price'], self.trades)) / len(self.trades)
 
         btcs = balance['btcs']
         usds = balance['usds']

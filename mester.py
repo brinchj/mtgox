@@ -18,7 +18,7 @@ bot.update(broker.trades())
 def iterate():
     print 'starting iteration..'
     balance = broker.balance()
-    prices = broker.offer()
+    prices = broker.offer(balance)
 
     print balance, prices
 
@@ -33,3 +33,5 @@ def iterate():
         iterate()
 
 
+if __name__ == '__main__':
+    iterate()
