@@ -138,6 +138,6 @@ class Broker(Thread):
         bal = self.balance()
         usds = to_decimal(bal['usds']) / USD_FACTOR
         btcs = to_decimal(bal['btcs']) / BTC_FACTOR
-        val = {'btcs': str(usds / rate + btcs),
-               'usds': str(btcs * rate + usds)}
+        val = {'btcs': usds / rate + btcs,
+               'usds': btcs * rate + usds}
         return val
