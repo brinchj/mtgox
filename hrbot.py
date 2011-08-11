@@ -6,6 +6,7 @@ import time
 WINDOW = 300
 MIN = 5
 MARGIN = 0.02
+SCALE = 0.1
 
 class HrBot:
     def __init__(self):
@@ -18,7 +19,7 @@ class HrBot:
 
     def action(self, balance, prices):
         if len(self.trades) < MIN:
-            return None
+            return 0
         # price, amount, tid, date
         movavg = sum(map(lambda x: x['price'], self.trades)) / len(self.trades)
 
@@ -29,7 +30,7 @@ class HrBot:
         sell = prices['sell']
 
         if btcs == 0 and buy < movavg * (1 - MARGIN):
-            return usds / buy
+            return int(usds * SCALE) / buy
         elif btcs > 0 and sell > movavg * (1 + MARGIN):
-            return -btcs
+            return int(-btcs * SCALE)
         return 0
