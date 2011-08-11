@@ -33,3 +33,5 @@ def iterate():
         iterate()
 
 
+if __name__ == '__main__':
+    iterate()
