@@ -67,8 +67,6 @@ class Broker(Thread):
         conv = lambda (usd,btc): (intUSD(usd), intBTC(btc))
         bids = map(conv, data['bids'][-1::-1])
         asks = map(conv, data['asks'])
-        print bids[0:2]
-        print asks[0:2]
 
         n = 0
         for (p, a) in bids:
@@ -89,24 +87,23 @@ class Broker(Thread):
         return data['orders']
 
     def trades(self, since=None):
-        def _getTrades(since):
-            trades = []
-            while True:
-                try:
-                    t = self.gox.trades(since)
-                except Exception,e:
-                    print "!! Request timed out; trying again"
-                    print e
-                    time.sleep(1)
-                    continue
-                print "%s -- %s" % (time.ctime(t[0]['date']), time.ctime(t[-1]['date']))
-                trades = trades + t
-                if len(t) < 100:
-                    break
-                since = t[-1]['tid']
+        since = None
+        trades = []
+        while True:
+            t = maybeRetry(lambda: self.gox.trades(since))
+            if len(t) > 0:
+                print "%s -- %s" % \
+                    (time.ctime(t[0]['date']), time.ctime(t[-1]['date']))
+            trades = trades + t
+            if len(t) < 100:
+                break
+            since = t[-1]['tid']
 
-        data = maybeRetry(lambda : _getTrades(since))
-        return data['trades']
+        return map(lambda x: {'price': int(x['price_int']),
+                              'amount': int(x['amount_int']),
+                              'tid': x['tid'],
+                              'date': x['date']},
+                   trades)
 
     def cancel(self, oid):
         maybeRetry(lambda: self.gox.cancel(oid))
