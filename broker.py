@@ -123,8 +123,21 @@ class Broker(Thread):
 
         data = maybeRetry(lambda:action(strBTC(amount), strUSD(price)))
         oid = data['oid']
-        self.queued[oid] = {'timeout': time.time() + ttl * 60,
+        self.queued[oid] = {'timeout': time.time() + ttl,
                             'onSuccess': onSuccess,
                             'onTimeout': onTimeout}
 
         return oid
+
+    def ticker(self):
+        return maybeRetry(self.gox.ticker)['ticker']
+
+    def value(self):
+        tic = self.ticker()
+        rate = to_decimal(tic['last'])
+        bal = self.balance()
+        usds = to_decimal(bal['usds']) / USD_FACTOR
+        btcs = to_decimal(bal['btcs']) / BTC_FACTOR
+        val = {'btcs': str(usds / rate + btcs),
+               'usds': str(btcs * rate + usds)}
+        return val
