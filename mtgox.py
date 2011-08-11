@@ -13,6 +13,7 @@ def hmac_digest(data, key):
 
 
 def get_nonce():
+    time.sleep(0.01)
     return str(int(time.time() * 1000))
 
 
@@ -42,7 +43,8 @@ class MtGox:
             'Rest-Sign': b64encode(hmac_digest(post_data, b64decode(self.sec)))
             }
 
-        return json.loads(post(url, post_data, headers))
+        js = post(url, post_data, headers)
+        return json.loads(js)
 
     def trades(self, since = None):
         if since is not None:
