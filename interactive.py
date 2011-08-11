@@ -82,4 +82,6 @@ def sellMax(price = None):
     return sell(amount, price)
 
 def value():
-    return _broker.value()
+    data = _broker.value()
+    return {'btcs': float(data['btcs']),
+            'usds': float(data['usds'])}
