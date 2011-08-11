@@ -22,10 +22,10 @@ def intBTC(usd):
 def intUSD(usd):
     return int(to_decimal(usd) * USD_FACTOR)
 
-def floatBTC(btc):
+def strBTC(btc):
     return str(to_decimal(btc) / BTC_FACTOR)
 
-def floatUSD(usd):
+def strUSD(usd):
     return str(to_decimal(usd) / USD_FACTOR)
 
 class Broker(Thread):
