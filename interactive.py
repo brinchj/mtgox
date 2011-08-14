@@ -1,87 +1,85 @@
 from mtgox import MtGox
-from broker import Broker
 from config import KEY, SEC
 from decimal import Decimal
 
-_gox = MtGox(KEY, SEC)
-_broker = Broker(_gox)
-_broker.start()
-
 TIMEOUT = 60
 
-_BTC_FACTOR = 10 ** 8
-_USD_FACTOR = 10 ** 5
-def _floatBTC(btc):
-    return float(btc) / _BTC_FACTOR
-def _floatUSD(usd):
-    return float(usd) / _USD_FACTOR
-def _to_decimal(flt):
-    return Decimal(str(flt))
-def _intBTC(btc):
-    return int(_to_decimal(btc) * _BTC_FACTOR)
-def _intUSD(usd):
-    return int(_to_decimal(usd) * _USD_FACTOR)
+_gox = MtGox(KEY, SEC)
+_gox.start()
+
+def _to_decimal(x):
+    return Decimal(str(x))
 
 def stop():
-    _broker.stop()
+    _gox.stop()
     quit()
 
+def ticker():
+    x = _gox.ticker()
+    return {'buy': str(x['buy']),
+            'sell': str(x['sell']),
+            'high': str(x['high']),
+            'low': str(x['low']),
+            'last': str(x['last']),
+            'avg': str(x['avg']),
+            'vol': str(x['vol']),
+            'vwap': str(x['vwap'])}
+
+def depth():
+    x = _gox.depth()
+    f = lambda x: {'amount': str(x['amount']),
+                   'price': str(x['price'])}
+    return {'bids': map(f, x['bids']),
+            'asks': map(f, x['asks'])}
+
 def balance():
-    data = _broker.balance()
-    return {'btcs': _floatBTC(data['btcs']),
-            'usds': _floatUSD(data['usds'])}
+    x = _gox.balance()
+    return {'btcs': str(x['btcs']),
+            'usds': str(x['usds'])}
 
-def offer(balance = None):
-    if balance is None:
-        balance = {'btcs': 0, 'usds': 0}
+def _trade(amount, price, ttl):
+    if amount > 0:
+        action = 'Bought'
     else:
-        balance = {'btcs': _intBTC(balance['btcs']),
-                   'usds': _intUSD(balance['usds'])}
-    data = _broker.offer(balance)
-    return {'sell': _floatUSD(data['sell']),
-            'buy': _floatUSD(data['buy'])}
+        action = 'Sold'
+    def onProgress(oid, data):
+        print '%s %.2f BTC at %.2f USD:' % (action, data['amount'], data['price'])
+        print '   ', oid
+    def onFilled(oid):
+        print 'Order was filled:'
+        print '   ', oid
+    def onCancel(oid):
+        print 'Order was cancelled:'
+        print '   ', oid
+    def onTimeout(oid):
+        print 'Order has timed out:'
+        print '   ', oid
+    return _gox.trade(_to_decimal(amount), _to_decimal(price), ttl,
+                      onProgress,
+                      onFilled,
+                      onCancel,
+                      onTimeout)
 
-def orders():
-    def f(x):
-        x['amount'] = _floatBTC(x['amount'])
-        x['price'] = _floatUSD(x['price'])
-        return x
-    return map(f, _broker.orders())
+def buy(amount, price, ttl = TIMEOUT):
+    return _trade(amount, price, ttl)
+
+def sell(amount, price, ttl = TIMEOUT):
+    return _trade(-amount, price, ttl)
 
 def cancel(oid):
-    return _broker.cancel(oid)
+    _gox.cancel(oid)
 
-def cancelAll():
-    _broker.cancelAll()
+def cancel_all():
+    _gox.cancel_all()
 
-def _successHandler(oid):
-    print "Success! (%s)" % oid
-def _timeoutHandler(oid):
-    print "Timeout! (%s)" % oid
-
-def buy(amount, price = None):
-    if price is None:
-        data = _offer({'btcs': 0, 'usds': amount})
-        price = data['buy']
-    return _broker.trade(_intBTC(amount / price), _intUSD(price), TIMEOUT,
-                         _successHandler, _timeoutHandler)
-
-def buyMax(price = None):
-    amount = balance()['usds']
-    return buy(amount, price)
-
-def sell(amount, price = None):
-    if price is None:
-        data = _offer({'btcs': amount, 'usds': 0})
-        price = data['sell']
-    return _broker.trade(_intBTC(-amount), _intUSD(price), TIMEOUT,
-                         _successHandler, _timeoutHandler)
-
-def sellMax(price = None):
-    amount = balance()['btcs']
-    return sell(amount, price)
-
-def value():
-    data = _broker.value()
-    return {'btcs': float(data['btcs']),
-            'usds': float(data['usds'])}
+def orders():
+    return map(lambda x:
+                   {'amount': str(x['amount']),
+                    'orig_amount': str(x['orig_amount']),
+                    'price': str(x['price']),
+                    'date': time.ctime(x['date']),
+                    'oid': x['oid'],
+             'status': x['status'],
+                    'ttl': x['ttl'],
+                    'type': x['type']},
+               _gox.orders())

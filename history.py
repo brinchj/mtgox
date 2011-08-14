@@ -1,17 +1,17 @@
 from mtgox import MtGox
 from brinchj import KEY, SEC
 
-import time, pickle
+import time, json
 
 gox = MtGox(KEY, SEC)
 
-file_raw = 'history.raw.pickled'
+file_raw = 'history.raw.json'
 file_prices = 'history.prices.pickled'
 
 try:
     with open(file_raw) as f:
         print "Reading saved trades from disk"
-        trades = pickle.load(f)
+        trades = json.load(f)
         since = trades[-1]['tid']
         print "Read %d trades from disk" % len(trades)
 except:
@@ -32,10 +32,10 @@ while True:
 
 with open(file_raw, 'w') as f:
     print "Writing %d trades to disk" % len(trades)
-    pickle.dump(trades, f)
+    json.dump(trades, f)
 
-prices = map(lambda x: float(x['price']), trades)
+# prices = map(lambda x: float(x['price']), trades)
 
-with open(file_prices, 'w') as f:
-    print "Writing %d prices to disk" % len(prices)
-    pickle.dump(prices, f)
+# with open(file_prices, 'w') as f:
+#     print "Writing %d prices to disk" % len(prices)
+#     json.dump(prices, f)
