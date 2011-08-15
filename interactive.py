@@ -1,6 +1,19 @@
+import logging
+
 from mtgox import MtGox
 from config import KEY, SEC
 from decimal import Decimal
+
+logging.basicConfig(
+    filename = 'interactive.log',
+    filemode = 'w',
+    format = '[%(asctime)s, %(threadName)s, %(name)s, %(levelname)s]\
+\n   %(message)s',
+    datefmt = '%d/%m %H:%M',
+    )
+
+logging.getLogger('MtGoxCore').setLevel(logging.NOTSET)
+logging.getLogger('MtGox').setLevel(logging.DEBUG)
 
 TIMEOUT = 60
 
@@ -9,6 +22,9 @@ _gox.start()
 
 def _to_decimal(x):
     return Decimal(str(x))
+
+def set_default_timeout(ttl):
+    TIMEOUT = ttl
 
 def stop():
     _gox.stop()
@@ -38,6 +54,8 @@ def balance():
             'usds': str(x['usds'])}
 
 def _trade(amount, price, ttl):
+    if ttl is None:
+        ttl = TIMEOUT
     if amount > 0:
         action = 'Bought'
     else:
@@ -60,10 +78,10 @@ def _trade(amount, price, ttl):
                       onCancel,
                       onTimeout)
 
-def buy(amount, price, ttl = TIMEOUT):
+def buy(amount, price, ttl = None):
     return _trade(amount, price, ttl)
 
-def sell(amount, price, ttl = TIMEOUT):
+def sell(amount, price, ttl = None):
     return _trade(-amount, price, ttl)
 
 def cancel(oid):

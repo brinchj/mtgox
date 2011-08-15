@@ -1,29 +1,29 @@
-import urllib
-import urllib2
-import time
-import hmac
-import json
-
+import urllib, urllib2, time, hmac, json, logging
 
 from base64 import b64encode, b64decode
 from hashlib import sha512 as hash
 
+logger = logging.getLogger('MtGoxCore')
+
 def _hmac_digest(data, key):
     return hmac.new(key, data, hash).digest()
 
-
 def _get_nonce():
-    return str(int(time.time() * 1000))
-
+    nonce = str(int(time.time() * 1000))
+    logger.info('Produced nonce: %s' % nonce)
+    return nonce
 
 def _post(url, data='', headers={}):
     while True:
         try:
+            logger.info('Sending request...')
             req = urllib2.Request(url, data, headers)
             res = urllib2.urlopen(req, timeout=10)
+            logger.info('Success!')
             return res.read()
         except (urllib2.URLError, urllib2.HTTPError), e:
-            pass
+            logger.info('Failed; resending...')
+            logger.debug(str(e))
 
 class MtGoxCore:
     URL = 'https://mtgox.com/api/0/%s.php?%s'
@@ -47,8 +47,12 @@ class MtGoxCore:
             try:
                 dt = json.loads(js)
             except:
+                logger.info('Got invalid JSON; retrying')
+                logger.debug(js)
                 continue
             if 'error' in dt:
+                logger.info('MtGox reported an error; retrying')
+                logger.debug(str(dt))
                 continue
             return dt
 
@@ -64,6 +68,7 @@ class MtGoxCore:
                    vwap: float}
                    }"""
         # 'vwap' is weighed average
+        logger.info('ticker()')
         return self.req(MtGoxCore.URL % ('data/ticker', ''))
 
     def depth(self):
@@ -75,6 +80,7 @@ class MtGoxCore:
          first one is price, second is amount.
 
          Bids and asks are ordered by increasing price."""
+        logger.info('depth()')
         return self.req(MtGoxCore.URL % ('data/getDepth', ''))
 
     def trades(self, since = None):
@@ -93,13 +99,14 @@ class MtGoxCore:
             param = 'since=' + str(since)
         else:
             param = ''
+        logger.info('trades(%s)' % since)
         return self.req(MtGoxCore.URL % ('data/getTrades', param))
 
     def balance(self):
         """Output:
         {btcs: string,
          usds: string}"""
-##        print '[MtGoxCore: balance]'
+        logger.info('balance()')
         return self.req(MtGoxCore.URL % ('getFunds', ''))
 
     def __mkOrder(self, kind, amount, price):
@@ -108,11 +115,11 @@ class MtGoxCore:
                         )
 
     def buy(self, amount, price):
-##        print '[MtGoxCore: buy]'
+        logger.info('buy(%s, %s)' % (amount, price))
         return self.__mkOrder('buy', amount, price)
 
     def sell(self, amount, price):
-##        print '[MtGoxCore: sell]'
+        logger.info('sell(%s, %s)' % (amount, price))
         return self.__mkOrder('sell', amount, price)
 
     def cancel(self, oid):
@@ -120,12 +127,13 @@ class MtGoxCore:
         {btcs: string,
          usds: string,
          orders: [order]}"""
-##        print '[MtGoxCore: cancel]'
+        logger.info('cancel(%s)' % oid)
         return self.req(MtGoxCore.URL % ('cancelOrder', ''), {'oid': oid})
 
     def orders(self):
-##        print '[MtGoxCore: orders]'
+        logger.info('orders()')
         return self.req(MtGoxCore.URL % ('getOrders', ''))
 
     def withdraw(self, amount, address):
+        logger.info('withdraw(%s, %s)' % (amount, address))
         return self.req(MtGoxCore.URL % ('withdraw', ''))

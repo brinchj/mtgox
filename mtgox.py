@@ -1,4 +1,4 @@
-import urllib2, time, convert, random
+import urllib2, time, convert, random, logging
 
 from threading import Thread, Lock
 from mtgoxcore import MtGoxCore
@@ -8,27 +8,31 @@ INTERVAL = 5
 BUY_FEE = Decimal('0.003')
 SELL_FEE = Decimal('0')
 
+logger = logging.getLogger('MtGox')
+
 class MtGox(Thread):
     def __init__(self, key, sec):
         Thread.__init__(self)
 
         self._core = MtGoxCore(key, sec)
         # start with a clean order book
-##        print '-- Swiping order book...'
+        logger.info('Initialising; Swiping order book...')
         while True:
             data = self._core.orders()
             oids = map(lambda o: o['oid'],
                        data['orders']
                        )
+            logger.debug(oids)
             if oids == []:
                 break
             map(self._core.cancel, oids)
-##        print '-- Done'
+        logger.info('Order book is clean')
 
         self._orders = {}
         self._balance = convert.balance(data)
         self._lock = Lock()
         self._running = False
+        logger.info('Initialisation done!')
 
     def run(self):
         self._running = True
@@ -40,9 +44,15 @@ class MtGox(Thread):
         self._running = False
 
     def _sync(self):
-        if self._orders == {}:
-            return
+        logger.info('Syncronising orders...')
+        logger.debug('Acquiring lock...')
         self._lock.acquire()
+        logger.debug('Lock acquired!')
+        if self._orders == {}:
+            logger.info('Nothing to do; Syncronisation done!')
+            logger.debug('Releasing lock')
+            self._lock.release()
+            return
         def index(orders):
             bids = {}
             asks = {}
@@ -77,6 +87,7 @@ class MtGox(Thread):
             return (sorted(live, key = f),
                     sorted(dead, key = f))
         def callback(x, f, args):
+            logger.debug('Callback for %s: %s' % (x['oid'], f))
             try:
                 x['callbacks'][f](*args)
             except:
@@ -87,7 +98,7 @@ class MtGox(Thread):
         orders = convert.orders(data)
         balance = convert.balance(data)
         while True:
-##            print '-- Building indexes'
+            logger.debug('Building indexes')
             (oldbids, oldasks) = index(self._orders.values())
             (oldbtcs, oldusds) = (self._balance['btcs'], self._balance['usds'])
             (newbids, newasks) = index(orders)
@@ -111,7 +122,7 @@ class MtGox(Thread):
                 real_delta = newbtcs - oldbtcs
                 if abs(delta1 - real_delta) > abs(delta2 - real_delta):
                     # Was cancelled - prune local orders
-##                    print '-- Order was cancelled:', cancelled['oid']
+                    logger.debug('Order was cancelled: %s' % cancelled['oid'])
                     (live, dead) = partition(d[cancelled['price']])
                     dead_left = False
                     for o in dead:
@@ -127,15 +138,17 @@ class MtGox(Thread):
                             dead_left = True
                     # If the cancelled amount was too large:
                     if not dead_left and not cancelled['amount'].is_zero():
+                        logger.debug('Cancelled order too large; replacing...')
                         cancelled['oid'] = f(cancelled['amount'],
                                              cancelled['price'])
                         cancelled['status'] = 'pending'
                         cancelled['date'] = time.time()
                         orders.append(cancelled)
+                        logger.debug('Done!')
                     cancelled = None
                     continue # rebuild indexes
                 else:
-##                    print '-- Order was not cancelled:', cancelled['oid']
+                    logger.debug('Order was not cancelled: %s' % cancelled['oid'])
                     # Was not cancelled - do nothing
                     cancelled = None
 
@@ -145,10 +158,9 @@ class MtGox(Thread):
             except:
                 price = Decimal(0)
             def process(old, new):
-##                print '-- Processing orders'
+                logger.debug('Processing orders...')
                 to_cancel = []
                 for (p, os) in old.items():
-##                    print '  ', p
                     oldamount = sum_amounts(os)
                     if p in new:
                         newamount = sum_amounts(new[p])
@@ -174,8 +186,10 @@ class MtGox(Thread):
                             self._orders[oid]['amount'] -= amount
                         if o['status'] is not 'open':
                             # we're processing non-open orders -- cancel!
+                            logger.debug('Need to cancel at price %.2f' % p)
                             to_cancel += new[p]
                         break
+                logger.debug('Processing done!')
                 return to_cancel
             to_cancel = \
                 process(oldbids, newbids) + \
@@ -185,7 +199,7 @@ class MtGox(Thread):
 
             # check for orders to cancel
             if to_cancel == []:
-##                print '-- Nothing to cancel; Done!'
+                logger.debug('Nothing to cancel; Synchronisation done!')
                 break
             # pick 'invalid' orders first, then 'open', last 'pending'
             def key(x):
@@ -200,11 +214,12 @@ class MtGox(Thread):
             random.shuffle(to_cancel) # avoid always going for lowest bid
             cancelled = sorted(to_cancel, key = key)[0]
             # cancelled = to_cancel[random.randrange(0, len(to_cancel))]
-##            print '-- Cancelling order:', cancelled['oid']
+            logger.debug('Cancelling order: %s' % cancelled['oid'])
             data = self._core.cancel(cancelled['oid'])
             orders = convert.orders(data)
             balance = convert.balance(data)
         #end while
+        logger.debug('Releasing lock')
         self._lock.release()
 
     def ticker(self):
@@ -217,7 +232,7 @@ class MtGox(Thread):
         return convert.trades(self._core.trades(since))
 
     def balance(self):
-        return self._state['balance']
+        return self._balance
 
     def trade(self, amount, price, ttl = None,
               onProgress = None,
@@ -231,6 +246,7 @@ class MtGox(Thread):
             f = self._core.sell
             t = 'ask'
             amount = -amount
+        self._lock.acquire()
         oid = f(amount, price)['oid']
         self._orders[oid] = {'oid': oid,
                              'amount': amount,
@@ -246,6 +262,7 @@ class MtGox(Thread):
                                   'onCancel': onCancel,
                                   'onTimeout': onTimeout}
                              }
+        self._lock.release()
         return oid
 
     def register(self, oid, callback, fun):
