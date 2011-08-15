@@ -1,9 +1,9 @@
-from mtgox import MtGox
-from brinchj import KEY, SEC
+from mtgoxcore import MtGoxCore
+from config import KEY, SEC
 
 import time, json
 
-gox = MtGox(KEY, SEC)
+gox = MtGoxCore(KEY, SEC)
 
 file_raw = 'history.raw.json'
 file_prices = 'history.prices.pickled'
@@ -19,11 +19,7 @@ except:
     trades = []
 
 while True:
-    try:
-        t = gox.trades(since)
-    except:
-        print "!! Request timed out; trying again"
-        continue
+    t = gox.trades(since)
     print "%s -- %s" % (time.ctime(t[0]['date']), time.ctime(t[-1]['date']))
     trades = trades + t
     if len(t) < 100:

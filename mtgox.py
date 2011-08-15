@@ -4,7 +4,7 @@ from threading import Thread, Lock
 from mtgoxcore import MtGoxCore
 from decimal import Decimal
 
-INTERVAL = 5
+INTERVAL = 1
 BUY_FEE = Decimal('0.003')
 SELL_FEE = Decimal('0')
 
@@ -36,9 +36,11 @@ class MtGox(Thread):
 
     def run(self):
         self._running = True
+        logger.info('Syncronisation thread started (hi mom!)')
         while self._running:
             self._sync()
             time.sleep(INTERVAL)
+        logger.info('Ending syncronisation thread')
 
     def stop(self):
         self._running = False
@@ -86,10 +88,10 @@ class MtGox(Thread):
             f = lambda x: x['date']
             return (sorted(live, key = f),
                     sorted(dead, key = f))
-        def callback(x, f, args):
+        def callback(x, f, *args):
             logger.debug('Callback for %s: %s' % (x['oid'], f))
             try:
-                x['callbacks'][f](*args)
+                x['callbacks'][f](o, *args)
             except:
                 pass
 
@@ -129,9 +131,9 @@ class MtGox(Thread):
                         if cancelled['amount'] >= o['amount']:
                             oid = o['oid']
                             if o['status'] == 'timed_out':
-                                callback(o, 'onTimeout', (oid,))
+                                callback(o, 'onTimeout')
                             else:
-                                callback(o, 'onCancel', (oid,))
+                                callback(o, 'onCancel')
                             del self._orders[oid]
                             cancelled['amount'] -= o['amount']
                         else:
@@ -173,16 +175,14 @@ class MtGox(Thread):
                         oid = o['oid']
                         if o['amount'] <= amount:
                             # filled
-                            callback(o, 'onProgress', (oid, {'amount': o['amount'],
-                                                             'price': price}))
-                            callback(o, 'onFilled', (oid,))
+                            callback(o, 'onProgress', o['amount'], price)
+                            callback(o, 'onFilled')
                             del self._orders[oid]
                             amount -= o['amount']
                             continue
                         if not amount.is_zero():
                             # part filled
-                            callback(o, 'onProgress', (oid, {'amount': amount,
-                                                             'price': price}))
+                            callback(o, 'onProgress', amount, price)
                             self._orders[oid]['amount'] -= amount
                         if o['status'] is not 'open':
                             # we're processing non-open orders -- cancel!
@@ -199,7 +199,7 @@ class MtGox(Thread):
 
             # check for orders to cancel
             if to_cancel == []:
-                logger.debug('Nothing to cancel; Synchronisation done!')
+                logger.info('Nothing to cancel; Synchronisation done!')
                 break
             # pick 'invalid' orders first, then 'open', last 'pending'
             def key(x):

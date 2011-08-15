@@ -44,15 +44,15 @@ class MtGoxCore:
                 }
 
             js = _post(url, post_data, headers)
+            logger.debug(js)
             try:
                 dt = json.loads(js)
+                logger.debug(str(dt))
             except:
                 logger.info('Got invalid JSON; retrying')
-                logger.debug(js)
                 continue
             if 'error' in dt:
                 logger.info('MtGox reported an error; retrying')
-                logger.debug(str(dt))
                 continue
             return dt
 
