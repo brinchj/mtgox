@@ -15,7 +15,7 @@ logging.basicConfig(
 
 # logging.getLogger('MtGoxCore').setLevel(logging.DEBUG)
 # logging.getLogger('MtGox').setLevel(logging.DEBUG)
-logging.getLogger('MtGoxCore').setLevel(logging.INFO)
+logging.getLogger('MtGoxCore').setLevel(logging.NOTSET)
 logging.getLogger('MtGox').setLevel(logging.INFO)
 
 

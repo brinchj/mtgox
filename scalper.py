@@ -5,7 +5,7 @@ from decimal import Decimal
 
 WINDOW = 60
 MIN = 5
-MARGIN = Decimal('0.015')
+MARGIN = Decimal('0.02')
 TIMEOUT = 30
 INTERVAL = 5
 

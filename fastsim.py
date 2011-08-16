@@ -1,9 +1,9 @@
 import json, time, convert
 
-FEE = 0.003
+FEE = 0.0065
 WINDOW = 60
 MIN = 5
-MARGIN = 0.015
+MARGIN = 0.02
 
 print 'Loading history...'
 history = json.load(file('history.raw.json'))
@@ -65,8 +65,8 @@ def sim(start, end):
     for t in trades:
         bot.update([t])
         p = t['price']
-        buy = p * 1.01
-        sell = p * 0.99
+        buy = p * 1.02
+        sell = p * 0.98
         x = bot.action({'buy': buy, 'sell': sell})
         if x != 0:
             bot.onTrade(x, 0)
@@ -86,16 +86,18 @@ def sim(start, end):
 
     print "%.2f%%" % ((btc - 1) * 100)
 
-for m in range(7, 13):
-    d = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    start = "01/%d-2010 00:00" % m
-    end   = "%d/%d-2010 23:59" % (d[m], m)
+# for m in range(7, 13):
+#     d = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+#     start = "01/%d-2010 00:00" % m
+#     end   = "%d/%d-2010 23:59" % (d[m], m)
 
-    sim(start, end)
+#     sim(start, end)
 
-for m in range(1, 9):
-    d = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    start = "01/%d-2011 00:00" % m
-    end   = "%d/%d-2011 23:59" % (d[m], m)
+# for m in range(1, 9):
+#     d = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+#     start = "01/%d-2011 00:00" % m
+#     end   = "%d/%d-2011 23:59" % (d[m], m)
 
-    sim(start, end)
+#     sim(start, end)
+
+sim('01/05-2011 00:00', '15/08-2011 23:59')
