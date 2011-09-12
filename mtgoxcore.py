@@ -1,4 +1,4 @@
-import urllib, urllib2, time, hmac, json, logging
+import urllib, urllib2, ssl, post, time, hmac, json, logging
 
 from base64 import b64encode, b64decode
 from hashlib import sha512 as hash
@@ -13,18 +13,6 @@ def _get_nonce():
     logger.info('Produced nonce: %s' % nonce)
     return nonce
 
-def _post(url, data='', headers={}):
-    while True:
-        try:
-            logger.info('Sending request...')
-            req = urllib2.Request(url, data, headers)
-            res = urllib2.urlopen(req, timeout=10)
-            logger.info('Success!')
-            return res.read()
-        except (urllib2.URLError, urllib2.HTTPError), e:
-            logger.info('Failed; resending...')
-            logger.debug(str(e))
-
 class MtGoxCore:
     URL = 'https://mtgox.com/api/0/%s.php?%s'
 
@@ -32,7 +20,7 @@ class MtGoxCore:
         self.key = key
         self.sec = secret
 
-    def req(self, url, values={'nonce': None}):
+    def req(self, url, values = {'nonce': None}):
         while True:
             nonce = _get_nonce()
             values['nonce'] = nonce
@@ -43,16 +31,16 @@ class MtGoxCore:
                 'Rest-Sign': b64encode(_hmac_digest(post_data, b64decode(self.sec)))
                 }
 
-            js = _post(url, post_data, headers)
-            logger.debug(js)
+            js = post.post(url, post_data, headers)
             try:
                 dt = json.loads(js)
-                logger.debug(str(dt))
             except:
                 logger.info('Got invalid JSON; retrying')
+                logger.debug(js)
                 continue
             if 'error' in dt:
                 logger.info('MtGox reported an error; retrying')
+                logger.debug(str(dt))
                 continue
             return dt
 

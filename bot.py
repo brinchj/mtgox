@@ -16,10 +16,10 @@ logging.basicConfig(
 # logging.getLogger('MtGoxCore').setLevel(logging.DEBUG)
 # logging.getLogger('MtGox').setLevel(logging.DEBUG)
 logging.getLogger('MtGoxCore').setLevel(logging.NOTSET)
-logging.getLogger('MtGox').setLevel(logging.INFO)
+logging.getLogger('MtGox').setLevel(logging.DEBUG)
 
 
 gox = MtGox(KEY, SEC)
 gox.start()
-scalper = Scalper(gox, Decimal(0), Decimal(20))
+scalper = Scalper(gox, Decimal(14), Decimal(80))
 scalper.start()

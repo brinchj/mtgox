@@ -1,9 +1,10 @@
 import json, time, convert
 
-FEE = 0.0065
+FEE = 0.0053
 WINDOW = 60
-MIN = 5
-MARGIN = 0.02
+MIN = 1
+MARGIN_BUY = 0.015
+MARGIN_SELL = 0.015
 
 print 'Loading history...'
 history = json.load(file('history.raw.json'))
@@ -11,18 +12,20 @@ history = json.load(file('history.raw.json'))
 class HrBot:
     def __init__(self):
         self.btc = True
+        self.price = 100000000
         self.trades = []
 
     def update(self, trades):
         self.trades += trades
         # offset = time.time() - WINDOW
-        offset = trades[-1]['date'] - WINDOW
-        self.trades = filter(lambda x: x['date'] > offset, self.trades)
+        cutoff = trades[-1]['date'] - WINDOW
+        self.trades = filter(lambda x: x['date'] > cutoff, self.trades)
         # if len(self.trades) > WINDOW:
             # self.trades = self.trades[-WINDOW:]
 
     def onTrade(self, amount, price):
         self.btc = not self.btc
+        self.price = price
 
     def action(self, prices):
         # print 'got:', len(self.trades)
@@ -36,10 +39,19 @@ class HrBot:
         buy = prices['buy']
         sell = prices['sell']
 
-        if not self.btc and buy < movavg * (1 - MARGIN):
+        margin_buy = MARGIN_BUY
+        margin_sell = MARGIN_SELL
+        if buy < self.price:
+            pass
+            margin_buy *= 0.8
+        if sell > self.price:
+            pass
+            margin_sell *= 0.8
+
+        if not self.btc and buy < movavg * (1 - margin_buy):
             # return (self.pool - self.balance)
             return 1
-        elif self.btc and sell > movavg * (1 + MARGIN):
+        elif self.btc and sell > movavg / (1 - margin_sell):
             # return -self.balance
             return -1
         return 0
@@ -93,11 +105,13 @@ def sim(start, end):
 
 #     sim(start, end)
 
-# for m in range(1, 9):
-#     d = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-#     start = "01/%d-2011 00:00" % m
-#     end   = "%d/%d-2011 23:59" % (d[m], m)
+for m in range(1, 10):
+    d = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    start = "01/%d-2011 00:00" % m
+    end   = "%d/%d-2011 23:59" % (d[m], m)
 
-#     sim(start, end)
+    sim(start, end)
 
-sim('01/05-2011 00:00', '15/08-2011 23:59')
+# sim('01/05-2011 00:00', '15/08-2011 23:59')
+# sim('01/08-2011 00:00', '15/08-2011 23:59')
+# sim('15/08-2011 00:00', '22/08-2011 23:59')

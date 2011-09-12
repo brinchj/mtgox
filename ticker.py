@@ -1,28 +1,31 @@
-import time
+import time, convert
 
-from mtgox import MtGox
+from mtgoxcore import MtGoxCore
 from config import KEY, SEC
 from decimal import Decimal
 
-gox = MtGox(KEY, SEC)
+FEE = Decimal('0.0053')
+
+gox = MtGoxCore(KEY, SEC)
 while True:
     try:
-        tic = gox.ticker()
-        bal = gox.balance()
+        tic = convert.ticker(gox.ticker())
+        bal = convert.balance(gox.balance())
 
         last = tic['last']
         buy = tic['sell']
         sell = tic['buy']
         usds = bal['usds']
         btcs = bal['btcs']
-        valusds = btcs * last + usds
-        valbtcs = usds / last + btcs
+        valusds = (1 - FEE) * btcs * last + usds
+        valbtcs = (1 - FEE) * usds / last + btcs
         print '%.3f BTC + %.3f USD' % (btcs, usds)
         print '%.3f BTC / %.3f USD' % (valbtcs, valusds)
         print 'Buy %.3f - Sell %.3f - Last %.3f' % (buy, sell, last)
         print ''
     except KeyboardInterrupt:
         exit(0)
-    except:
+    except Exception, e:
+        print e
         pass
-    time.sleep(10)
+    time.sleep(60)

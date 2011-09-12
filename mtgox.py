@@ -5,7 +5,7 @@ from mtgoxcore import MtGoxCore
 from decimal import Decimal
 
 INTERVAL = 1
-BUY_FEE = Decimal('0.003')
+BUY_FEE = Decimal('0.0065')
 SELL_FEE = Decimal('0')
 
 logger = logging.getLogger('MtGox')
@@ -46,15 +46,16 @@ class MtGox(Thread):
         self._running = False
 
     def _sync(self):
-        logger.info('Syncronising orders...')
-        logger.debug('Acquiring lock...')
+        # logger.info('Syncronising orders...')
+        # logger.debug('Acquiring lock...')
         self._lock.acquire()
-        logger.debug('Lock acquired!')
+        # logger.debug('Lock acquired!')
         if self._orders == {}:
-            logger.info('Nothing to do; Syncronisation done!')
-            logger.debug('Releasing lock')
+            # logger.info('Nothing to do; Syncronisation done!')
+            # logger.debug('Releasing lock')
             self._lock.release()
             return
+        logger.info('Syncronising orders...')
         def index(orders):
             bids = {}
             asks = {}
@@ -88,11 +89,12 @@ class MtGox(Thread):
             f = lambda x: x['date']
             return (sorted(live, key = f),
                     sorted(dead, key = f))
-        def callback(x, f, *args):
-            logger.debug('Callback for %s: %s' % (x['oid'], f))
+        def callback(o, f, *args):
+            logger.debug('Callback for %s: %s%s' % (o['oid'], f, repr(args)))
             try:
-                x['callbacks'][f](o, *args)
-            except:
+                o['callbacks'][f](o, *args)
+            except Exception, e:
+                logger.debug('Callback %s for order %s failed: %s' % (f, o['oid'], e))
                 pass
 
         cancelled = None
@@ -101,6 +103,7 @@ class MtGox(Thread):
         balance = convert.balance(data)
         while True:
             logger.debug('Building indexes')
+            logger.debug('Orderbook from MtGox: %s' % data)
             (oldbids, oldasks) = index(self._orders.values())
             (oldbtcs, oldusds) = (self._balance['btcs'], self._balance['usds'])
             (newbids, newasks) = index(orders)
@@ -108,6 +111,7 @@ class MtGox(Thread):
 
             # check for cancelation
             if cancelled is not None:
+                logger.debug('Checking if %s was cancelled' % cancelled['oid'])
                 bought = tot_amounts(oldbids) - tot_amounts(newbids)
                 sold = tot_amounts(oldasks) - tot_amounts(newasks)
                 delta1 = bought * (1 - BUY_FEE) - sold * (1 - SELL_FEE)
@@ -122,47 +126,56 @@ class MtGox(Thread):
                     d = oldasks
                     f = self._core.sell
                 real_delta = newbtcs - oldbtcs
-                if abs(delta1 - real_delta) > abs(delta2 - real_delta):
+                logger.debug('Sold %.2f -- Bough %.2f' % (sold, bought))
+                logger.debug('Deltas: not cancelled %.2f -- cancelled %.2f -- real %.2f' % (delta1, delta2, real_delta))
+                if abs(abs(delta1) - abs(real_delta)) > abs(abs(delta2) - abs(real_delta)):
                     # Was cancelled - prune local orders
-                    logger.debug('Order was cancelled: %s' % cancelled['oid'])
+                    logger.debug('Order was cancelled: %s at %.2f USD' % (cancelled['oid'], cancelled['price']))
                     (live, dead) = partition(d[cancelled['price']])
+                    logger.debug('Live: %s', live)
+                    logger.debug('Dead: %s', dead)
                     dead_left = False
                     for o in dead:
                         if cancelled['amount'] >= o['amount']:
                             oid = o['oid']
+                            cancelled['amount'] -= o['amount']
+                            o['cancelled_amount'] = o['amount']
+                            o['amount'] = Decimal(0)
                             if o['status'] == 'timed_out':
                                 callback(o, 'onTimeout')
                             else:
                                 callback(o, 'onCancel')
                             del self._orders[oid]
-                            cancelled['amount'] -= o['amount']
-                        else:
-                            dead_left = True
+                            continue
+                        if not cancelled['amount'].is_zero():
+                            o['cancelled_amount'] += cancelled['amount']
+                            o['amount'] -= cancelled['amount']
+                        dead_left = True
+                        break
                     # If the cancelled amount was too large:
                     if not dead_left and not cancelled['amount'].is_zero():
                         logger.debug('Cancelled order too large; replacing...')
-                        cancelled['oid'] = f(cancelled['amount'],
-                                             cancelled['price'])
-                        cancelled['status'] = 'pending'
-                        cancelled['date'] = time.time()
-                        orders.append(cancelled)
+                        f(cancelled['amount'], cancelled['price'])
                         logger.debug('Done!')
                     cancelled = None
                     continue # rebuild indexes
                 else:
-                    logger.debug('Order was not cancelled: %s' % cancelled['oid'])
+                    logger.debug('Order was not cancelled: %s as %.2f USD' % (cancelled['oid'], cancelled['price']))
                     # Was not cancelled - do nothing
                     cancelled = None
 
             # check for progress and/or filled orders
             try:
-                price = (newbtcs - oldbtcs) / (oldusds - newusds)
+                price = (oldusds - newusds) / (newbtcs - oldbtcs)
             except:
                 price = Decimal(0)
             def process(old, new):
                 logger.debug('Processing orders...')
+                logger.debug('Old: %s', old)
+                logger.debug('New: %s', new)
                 to_cancel = []
                 for (p, os) in old.items():
+                    logger.debug('Processing at price %.2f USD', p)
                     oldamount = sum_amounts(os)
                     if p in new:
                         newamount = sum_amounts(new[p])
@@ -171,22 +184,29 @@ class MtGox(Thread):
                     amount = oldamount - newamount
                     (live, dead) = partition(os)
                     os = live + dead
+                    logger.debug('Bought %.2f BTC', amount)
+                    logger.debug('Orders to process: %s', os)
                     for o in os:
                         oid = o['oid']
                         if o['amount'] <= amount:
                             # filled
-                            callback(o, 'onProgress', o['amount'], price)
+                            amount -= o['amount']
+                            a = o['amount']
+                            o['filled_amount'] += o['amount']
+                            o['amount'] = Decimal(0)
+                            callback(o, 'onProgress', a, price)
                             callback(o, 'onFilled')
                             del self._orders[oid]
-                            amount -= o['amount']
                             continue
                         if not amount.is_zero():
                             # part filled
+                            o['filled_amount'] += amount
+                            o['amount'] -= amount
                             callback(o, 'onProgress', amount, price)
-                            self._orders[oid]['amount'] -= amount
                         if o['status'] is not 'open':
                             # we're processing non-open orders -- cancel!
                             logger.debug('Need to cancel at price %.2f' % p)
+                            logger.debug('Candidates for cancelation: %s', new[p])
                             to_cancel += new[p]
                         break
                 logger.debug('Processing done!')
@@ -195,7 +215,9 @@ class MtGox(Thread):
                 process(oldbids, newbids) + \
                 process(oldasks, newasks)
             # we're now up to date
+            logger.debug('Old balance was: %s', self._balance)
             self._balance = balance
+            logger.debug('New balance is: %s', self._balance)
 
             # check for orders to cancel
             if to_cancel == []:
@@ -214,7 +236,7 @@ class MtGox(Thread):
             random.shuffle(to_cancel) # avoid always going for lowest bid
             cancelled = sorted(to_cancel, key = key)[0]
             # cancelled = to_cancel[random.randrange(0, len(to_cancel))]
-            logger.debug('Cancelling order: %s' % cancelled['oid'])
+            logger.debug('Cancelling order: %s at %.2f USD' % (cancelled['oid'], cancelled['price']))
             data = self._core.cancel(cancelled['oid'])
             orders = convert.orders(data)
             balance = convert.balance(data)
@@ -247,11 +269,20 @@ class MtGox(Thread):
             t = 'ask'
             amount = -amount
         self._lock.acquire()
-        oid = f(amount, price)['oid']
+        data = f(amount, price)
+        if 'oid' not in data:
+            return None
+        oid = data['oid']
+        os = filter(lambda o: o['oid'] == oid, data['orders'])
+        if os == []:
+            return None
+        o = convert.order(os[0])
         self._orders[oid] = {'oid': oid,
-                             'amount': amount,
-                             'orig_amount': amount,
-                             'price': price,
+                             'amount': o['amount'],
+                             'filled_amount': Decimal(0),
+                             'cancelled_amount': Decimal(0),
+                             'orig_amount': o['amount'],
+                             'price': o['price'],
                              'status': 'open',
                              'ttl': ttl,
                              'date': time.time(),

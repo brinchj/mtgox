@@ -4,28 +4,35 @@ from threading import Thread
 from decimal import Decimal
 
 WINDOW = 60
-MIN = 5
-MARGIN = Decimal('0.02')
+MIN = 1
+MARGIN_BUY = Decimal('0.015')
+MARGIN_SELL = Decimal('0.015')
 TIMEOUT = 30
 INTERVAL = 5
 
 class Scalper(Thread):
-    def __init__(self, gox, btcs, usds):
+    def __init__(self, gox):
         Thread.__init__(self)
 
+        self.order_in_progress = False
         self.gox = gox
-        self.btcs = btcs
-        self.usds = usds
+        # self.btcs = btcs
+        # self.usds = usds
         self.since = None
         self.trades = []
+        self.running = False
 
     def run(self):
-        while True:
-            self._loop()
+        self.running = True
+        while self.running:
+            if not self.order_in_progress:
+                self._loop()
             time.sleep(INTERVAL)
 
+    def stop(self):
+        self.running = False
+
     def _loop(self):
-        print '.'
         trades = self.gox.trades(self.since)
         if trades == []:
             return
@@ -37,28 +44,57 @@ class Scalper(Thread):
         if len(self.trades) < MIN:
             return
 
+        btcs = self.gox.balance()['btcs']
+        usds = self.gox.balance()['usds']
         depth = self.gox.depth()
-        bid = depth['bids'][0]
-        ask = depth['asks'][0]
+        try:
+            bid = depth['bids'][0]
+            ask = depth['asks'][0]
+        except:
+            return
         movavg = sum(map(lambda x: x['price'], self.trades)) / len(self.trades)
 
         def onBuy(order, amount, price):
-            self.btcs += amount
-            self.usds -= amount * price
-            print self.btcs
+            print "  Bought %.2f BTC at %.2f USD" % (amount, price)
+            # self.btcs += amount
+            # self.usds -= amount * price
         def onSell(order, amount, price):
-            self.btcs -= amount
-            self.usds += amount * price
+            print "  Sold %.2f BTC at %.2f USD" % (amount, price)
+            # self.btcs -= amount
+            # self.usds += amount * price
+        def onTimeout(order):
+            print "  Timeout"
+            self.order_in_progress = False
+        def onFilled(order):
+            print "  Filled"
+            self.order_in_progress = False
 
-        if self.usds > 0 and ask['price'] < movavg * (1 - MARGIN):
-            price = ask['price']
-            amount = min(self.usds / price, ask['amount'])
+        # print "%s: AVG %.2f - Buy %.2f%% - Sell %.2f%%" % \
+        #     (time.ctime(),
+        #      movavg,
+        #      max(100 * (movavg - ask['price']) / movavg, 0),
+        #      max(100 * (bid['price'] - movavg) / movavg, 0))
+        if usds > 0 and ask['price'] < movavg * (1 - MARGIN_BUY):
+            price = ask['price'] * Decimal('1.001')
+            amount = min(usds / price, ask['amount'])
+            print time.ctime()
+            print "  Buying %.2f BTC at %.2f USD" % (amount, price)
+            self.order_in_progress = True
             self.gox.buy(amount, price,
-                         ttl = TIMEOUT,
-                         onProgress = onBuy)
-        elif self.btcs > 0 and bid['price'] > movavg * (1 + MARGIN):
-            price = bid['price']
-            amount = min(self.btcs, bid['amount'])
+                         TIMEOUT,
+                         onBuy,
+                         onFilled,
+                         None,
+                         onTimeout)
+        elif btcs > 0 and bid['price'] > movavg / (1 - MARGIN_SELL):
+            price = bid['price'] / Decimal('1.001')
+            amount = min(btcs, bid['amount'])
+            print time.ctime()
+            print "  Selling %.2f BTC at %.2f USD" % (amount, price)
+            self.order_in_progress = True
             self.gox.sell(amount, price,
-                          ttl = TIMEOUT,
-                          onProgress = onSell)
+                          TIMEOUT,
+                          onSell,
+                          onFilled,
+                          None,
+                          onTimeout)
